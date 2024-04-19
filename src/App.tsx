@@ -1,50 +1,91 @@
-import React, { useState } from "react";
+import { useEffect, useState } from "react";
+import Navigation from "./components/Navigation";
+import Home from "./views/Home";
+import SignUp from "./views/SignUp";
+import Login from "./views/Login";
+import EditPost from "./views/EditPost";
+import { Route, Routes } from "react-router-dom";
+import Container from "react-bootstrap/esm/Container";
+import AlertMessage from "./components/AlertMessage";
+import { CategoryType, UserType } from "./types";
+import { getMe } from "./lib/apiWrapper";
+
 
 function App() {
-    // return React.createElement('h1', {}, 'This is a title');
-    //Without using JSX
-    // return React.createElement('div', {}, React.createElement('h1', {}, 'Hello World'), React.createElement('h2', {}, 'This is some useless text'))
-    // Using JSX below
-    // return (
-    //   <div>
-    //     <h1>Hello There</h1>
-    //     <h2>This is some useless text</h2>
-    //   </div>
-    // )
 
     // Hook (setup using useState)
-    const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+    const [isLoggedIn, setIsLoggedIn] = useState(localStorage.getItem('token') && new Date(localStorage.getItem('tokenExp')||0) > new Date() ? true : false);
+    const [loggedInUser, setLoggedInUser] = useState<UserType|null>(null)
+    
+    const [message, setMessage] = useState<string | undefined>(undefined);
+    const [category, setCategory] = useState<CategoryType | undefined>(undefined);
 
-    const toggleLogin = () => {
-        setIsLoggedIn(!isLoggedIn);
+
+    useEffect(() => {
+        console.log('this is the App effect')
+        async function getLoggedInUser() {
+            if (isLoggedIn) {
+                const token = localStorage.getItem('token') || ''
+                const response = await getMe(token)
+                if (response.data) {
+                    setLoggedInUser(response.data)
+                    localStorage.setItem('currentUser', JSON.stringify(response.data))
+                } else {
+                    setIsLoggedIn(false)
+                    console.log(response.error)
+                }
+            }
+        }
+        getLoggedInUser();     
+    },[isLoggedIn])
+
+
+    // Want to store the token on the BROWSER, not on a state
+    // can use localstorage or cookies
+    // localStorage.setItem('key', value)
+    
+
+    const flashMessage = (newMessage:string | undefined, newCategory: CategoryType | undefined) => {
+        setMessage(newMessage);
+        setCategory(newCategory);
+        setTimeout(() => {
+            if (newMessage && newCategory) {
+                flashMessage(undefined, undefined)
+            }
+        }, 20000)
     }
 
+    const logUserIn = () => {
+        setIsLoggedIn(true)
+    }
 
-    const posts = [
-        { id: 1, title: 'Happy'},
-        { id: 2, title: 'Meh'},
-        { id: 3, title: 'Sad'},
-    ]
+    const logUserOut = () => {
+        setIsLoggedIn(false);
+        setLoggedInUser(null);
+        localStorage.removeItem('token');
+        localStorage.removeItem('tokenExp');
+        localStorage.removeItem('currentUser');
+    }
 
-
-
-    const firstName:string = 'Johnathan';
-    
     return (
         <div>
-            <h2>
-                The name is: {firstName.toUpperCase()}
-            </h2>
-            <p>{isLoggedIn ? 'Welcome Back' : 'Please Log In'}</p>
-            <button onClick={toggleLogin}>LOGIN BTN</button>
+            <Navigation isLoggedIn={isLoggedIn} logUserOut={logUserOut} />
+
             <br />
-            <input type="text" name="TestingInput" id="" placeholder="input random shit here" autoFocus/>
-            {posts.map((post) => <p>{`${post.id} -- ${post.title}`}</p> )}
+
+            <Container>
+                {message && <AlertMessage message={message} category={category} flashMessage={flashMessage} />}
+                <Routes>
+                    <Route path='/' element={<Home isLoggedIn={isLoggedIn} currentUser={loggedInUser!} flashMessage={flashMessage} />}/>
+                    <Route path='/signup' element={<SignUp flashMessage={flashMessage} />}/>
+                    <Route path='/login' element={<Login flashMessage={flashMessage} logUserIn={logUserIn} />}/>
+                    <Route path="/edit/:postId" element={<EditPost flashMessage={flashMessage} />} />
+                </Routes>
+
+                
+            </Container>
         </div>
-    )
-
-
-
+    );
 }
 
 export default App;
